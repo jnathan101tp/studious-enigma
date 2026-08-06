@@ -1,0 +1,56 @@
+// ฟังก์ชันบันทึกข้อมูลแบบใหม่ ยิงเข้า Google Sheets
+  async function c2Save(){
+    const badges = document.querySelectorAll('.cs2-judge');
+    const hasNg = [...badges].some(b => b.classList.contains('ng'));
+    const hasWait = [...badges].some(b => b.classList.contains('wait'));
+    
+    if (hasWait) {
+        $('c2Hint').textContent = '未入力の項目があります (กรุณากรอกข้อมูลให้ครบ)';
+        return;
+    }
+
+    $('c2Hint').textContent = 'กำลังบันทึกข้อมูลลง Google Sheets...';
+
+    const payload = {
+        rid: chosenRecord.rid,
+        part: chosenPart,
+        lot: chosenRecord.lot,
+        status: hasNg ? 'NG' : 'OK',
+        measurements: []
+    };
+
+    const rows = document.querySelectorAll('#c2CheckRows tr');
+    rows.forEach(tr => {
+        if(tr.children.length === 4) {
+            payload.measurements.push({
+                item: tr.querySelector('.item-name').textContent,
+                val: parseFloat(tr.querySelector('.item-val').value),
+                judge: tr.querySelector('.item-judge').textContent,
+                remark: tr.querySelector('.item-rem').value
+            });
+        }
+    });
+
+    // นำ URL ที่ได้จาก Google Apps Script มาวางที่นี่
+    const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL_HERE';
+
+    try {
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            // ใช้ text/plain เพื่อป้องกันปัญหา CORS Preflight ในเบราว์เซอร์
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            $('c2Hint').textContent = hasNg ? 'บันทึกสำเร็จ（มี 항목 NG）' : 'บันทึกสำเร็จ（全項目OK）';
+        } else {
+            $('c2Hint').textContent = 'เกิดข้อผิดพลาดในการบันทึก';
+        }
+    } catch (error) {
+        $('c2Hint').textContent = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
+        console.error(error);
+    }
+  }
