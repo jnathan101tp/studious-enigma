@@ -1,15 +1,332 @@
-// ฟังก์ชันบันทึกข้อมูลแบบใหม่ ยิงเข้า Google Sheets
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>品質管理アプリ</title>
+  <style>
+    .cs2-root {
+      --ink:#243342; --ink-soft:#6B7686; --line:#DDE3E8; --line-soft:#EEF1F4;
+      --paper:#F4F6F8; --panel:#FFFFFF; --head:#F7F9FA;
+      --blue:#2C7BE5; --blue-soft:#EAF2FE;
+      --green:#2E9E5B; --green-soft:#E4F5EA;
+      --amber:#E37A2C; --amber-soft:#FBE6D3;
+      --red:#D64545; --red-soft:#FBE7E7;
+      font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic","Segoe UI",sans-serif;
+      background:var(--paper); padding:24px 10px; box-sizing:border-box; color:var(--ink);
+    }
+    .cs2-frame{
+      max-width:760px; margin:0 auto; background:var(--panel); border:1px solid var(--line);
+      border-radius:10px; overflow:hidden; box-shadow:0 10px 28px rgba(36,51,66,.10);
+    }
+    .cs2-topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 14px; border-bottom:1px solid var(--line); background:var(--head);
+    }
+    .cs2-crumbs{font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:5px;}
+    .cs2-crumbs .active{color:var(--blue); font-weight:700;}
+    .cs2-crumbs .clickable{cursor:pointer; text-decoration:underline; text-underline-offset:2px;}
+    .cs2-back{
+      font-size:12px; color:var(--blue); cursor:pointer; font-weight:600; visibility:hidden;
+      display:flex; align-items:center; gap:3px;
+    }
+    .cs2-back.show{visibility:visible;}
+    .cs2-searchrow{
+      display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line);
+    }
+    .cs2-searchbox{
+      flex:1; display:flex; align-items:center; gap:6px; border:1px solid var(--line);
+      border-radius:6px; padding:6px 10px; background:#fff;
+    }
+    .cs2-searchbox input{border:none; outline:none; font-size:13px; flex:1; color:var(--ink);}
+    .cs2-searchbox .ic{color:var(--ink-soft); font-size:13px;}
+    .cs2-reccount{font-size:11.5px; color:var(--ink-soft); white-space:nowrap;}
+    .cs2-screen{display:none;}
+    .cs2-screen.active{display:block;}
+    table.cs2-grid{width:100%; border-collapse:collapse; font-size:12.5px;}
+    table.cs2-grid th{
+      text-align:left; background:var(--head); color:var(--ink-soft); font-weight:700;
+      padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
+      position:sticky; top:0;
+    }
+    table.cs2-grid th.key{color:var(--blue);}
+    table.cs2-grid td{padding:8px 10px; border-bottom:1px solid var(--line-soft); white-space:nowrap;}
+    table.cs2-grid tbody tr{cursor:pointer;}
+    table.cs2-grid tbody tr:hover{background:var(--blue-soft);}
+    .cs2-recno{color:var(--blue); font-weight:600;}
+    .cs2-status{
+      font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; display:inline-block;
+    }
+    .cs2-status.pending{background:var(--amber-soft); color:#A85A1B;}
+    .cs2-status.done{background:var(--green-soft); color:#1F7A45;}
+    .cs2-editcol{color:var(--ink-soft); text-align:right;}
+    .cs2-empty{padding:30px; text-align:center; color:var(--ink-soft); font-size:12.5px;}
+    .cs2-detail{padding:14px;}
+    .cs2-recheader{
+      display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px;
+    }
+    .cs2-recheader .rid{font-weight:700; font-size:14px;}
+    .cs2-recheader .rmeta{font-size:12px; color:var(--ink-soft);}
+    .cs2-subtable{border:1px solid var(--line); border-radius:8px; margin-bottom:16px; overflow:hidden;}
+    .cs2-subhead{
+      display:flex; justify-content:space-between; align-items:center;
+      padding:8px 12px; background:var(--head); border-bottom:1px solid var(--line);
+    }
+    .cs2-subhead .name{font-weight:700; font-size:13px;}
+    .cs2-addbtn{
+      font-size:11.5px; font-weight:700; color:var(--green); background:var(--green-soft);
+      border:none; padding:4px 10px; border-radius:5px; cursor:pointer;
+    }
+    table.cs2-sub{width:100%; border-collapse:collapse; font-size:12px;}
+    table.cs2-sub th{
+      background:#fff; color:var(--ink-soft); font-weight:700; text-align:left;
+      padding:6px 10px; border-bottom:1px solid var(--line);
+    }
+    table.cs2-sub td{padding:6px 10px; border-bottom:1px solid var(--line-soft);}
+    table.cs2-sub input{
+      width:64px; border:1px solid var(--line); border-radius:4px; padding:3px 6px;
+      font-size:12px; text-align:right; font-family:"SFMono-Regular",Consolas,monospace;
+    }
+    .cs2-judge{font-size:11px; font-weight:700; padding:2px 8px; border-radius:5px; display:inline-block; min-width:30px; text-align:center;}
+    .cs2-judge.wait{background:#EEF1F4; color:var(--ink-soft);}
+    .cs2-judge.ok{background:var(--green-soft); color:var(--green);}
+    .cs2-judge.ng{background:var(--red-soft); color:var(--red);}
+    .cs2-savebar{display:flex; justify-content:flex-end; align-items:center; gap:10px; padding:6px 4px 4px;}
+    .cs2-savehint{font-size:11.5px; color:var(--ink-soft);}
+    .cs2-savebtn{
+      background:var(--blue); color:#fff; border:none; padding:9px 22px; border-radius:6px;
+      font-weight:700; font-size:13px; cursor:pointer;
+    }
+    .cs2-savebtn:active{opacity:.85;}
+    .cs2-note{font-size:11px; color:var(--ink-soft); text-align:center; padding:8px 4px 0;}
+  </style>
+</head>
+<body>
+<div class="cs2-root">
+  <div class="cs2-frame">
+    <div class="cs2-topbar">
+      <div class="cs2-crumbs" id="c2Crumbs"><span class="active">品番選択画面</span></div>
+      <div class="cs2-back" id="c2Back" onclick="c2Back()">← 戻る</div>
+    </div>
+    <div class="cs2-searchrow" id="c2SearchRow">
+      <div class="cs2-searchbox"><span class="ic">🔎</span><input id="c2Search" placeholder="品番で検索"></div>
+      <div class="cs2-reccount" id="c2Count">Records 1–8 of 8</div>
+    </div>
+    <div class="cs2-screen active" id="c2-list">
+      <table class="cs2-grid">
+        <thead>
+          <tr>
+            <th>レコード番号</th><th>ステータス</th><th>担当</th>
+            <th class="key" id="c2KeyHead">品番</th><th>LOT番号</th><th>ダイス番号</th><th>検品欄</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="c2Rows"></tbody>
+      </table>
+      <div class="cs2-empty" id="c2Empty" style="display:none;">該当するレコードがありません</div>
+    </div>
+    <div class="cs2-screen" id="c2-detail">
+      <div class="cs2-detail">
+        <div class="cs2-recheader">
+          <div>
+            <div class="rid" id="c2DetRid">—</div>
+            <div class="rmeta" id="c2DetMeta">—</div>
+          </div>
+        </div>
+        <div class="cs2-subtable">
+          <div class="cs2-subhead"><span class="name">寸法の規格 <span style="font-weight:400;color:var(--ink-soft);">（3主要項目・全30項目）</span></span><button class="cs2-addbtn">＋ 追加</button></div>
+          <div style="max-height:220px; overflow-y:auto;">
+          <table class="cs2-sub">
+            <thead><tr><th>項目</th><th>上限</th><th>下限</th></tr></thead>
+            <tbody id="c2SpecRows"></tbody>
+          </table>
+          </div>
+        </div>
+        <div class="cs2-subtable">
+          <div class="cs2-subhead"><span class="name">チェックシート</span><button class="cs2-addbtn">＋ 追加</button></div>
+          <div style="max-height:260px; overflow-y:auto;">
+          <table class="cs2-sub">
+            <thead><tr><th>項目</th><th>実測値</th><th>判定</th><th>備考</th></tr></thead>
+            <tbody id="c2CheckRows"></tbody>
+          </table>
+          </div>
+        </div>
+        <div class="cs2-savebar">
+          <span class="cs2-savehint" id="c2Hint"></span>
+          <button class="cs2-savebtn" onclick="c2Save()">保存</button>
+        </div>
+        <div class="cs2-note">主要項目（外観／寸法／その他）と各項目名は仮の例です。実際の3項目・30項目の名称に置き換えてください。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const GROUP_DEFS = [
+    { grp:'外観', items:['キズ','変色','バリ','汚れ','錆','塗装ムラ','欠け','曲がり','ラベル貼付','梱包状態'] },
+    { grp:'寸法', items:['全長','外径','穴径','深さ','段差','角度','平行度','直角度','表面粗さ','肉厚'] },
+    { grp:'その他', items:['刻印','ロット表示','数量','重量','硬度','検査日印','検査者印','包装重量','付属品数','総合判定'] },
+  ];
+  function buildSpec(scale){
+    const items = [];
+    GROUP_DEFS.forEach(g => {
+      g.items.forEach((name, idx) => {
+        const nominal = +((10 + idx) * scale).toFixed(2);
+        const tol = +(nominal * 0.01 + 0.02).toFixed(2);
+        items.push({ grp:g.grp, pos:name, up:+(nominal+tol).toFixed(2), low:+(nominal-tol).toFixed(2) });
+      });
+    });
+    return items;
+  }
+  const PRODUCTS = [
+    { part:'A-1001', spec:buildSpec(2.4) },
+    { part:'A-1002', spec:buildSpec(4.4) },
+    { part:'A-1003', spec:buildSpec(2.0) },
+    { part:'B-2005', spec:buildSpec(6.0) },
+    { part:'B-2006', spec:buildSpec(4.8) },
+    { part:'C-3002', spec:buildSpec(3.0) },
+    { part:'C-3010', spec:buildSpec(3.8) },
+  ];
+  const STAFF = ['田中','佐藤','鈴木','高橋','伊藤'];
+  const DICE_PREFIX = ['24W','C128','2453','2553','23F3','22B3','C129','25K0','24N3','C126'];
+
+  function buildRecords(){
+    let rid = 10084;
+    const list = [];
+    PRODUCTS.forEach((p, pi) => {
+      const lotCount = 4 + (pi % 3);
+      for (let i = 0; i < lotCount; i++){
+        const status = (i % 3 === 0) ? '検品中' : '検品済';
+        list.push({
+          rid: rid--,
+          status,
+          staff: STAFF[(pi + i) % STAFF.length],
+          part: p.part,
+          lot: `2026-0${500 + pi * 12 + i}`,
+          dice: DICE_PREFIX[(pi + i) % DICE_PREFIX.length] + (100 + pi * 7 + i),
+          insp: status === '検品済' ? '済' : '—',
+          spec: p.spec,
+        });
+      }
+    });
+    return list;
+  }
+  const RECORDS = buildRecords();
+  let mode = 'part';
+  let chosenPart = null;
+  let chosenRecord = null;
+  const $ = id => document.getElementById(id);
+
+  function statusBadge(s){
+    const cls = s === '検品済' ? 'done' : 'pending';
+    return `<span class="cs2-status ${cls}">${s}</span>`;
+  }
+
+  function renderList(){
+    const term = $('c2Search').value.trim();
+    let rows = RECORDS;
+    if (mode === 'lot') rows = rows.filter(r => r.part === chosenPart);
+    if (term) {
+      rows = rows.filter(r => mode === 'part'
+        ? r.part.toLowerCase().includes(term.toLowerCase())
+        : r.lot.toLowerCase().includes(term.toLowerCase()));
+    }
+    $('c2Count').textContent = `Records 1–${rows.length} of ${mode === 'lot' ? RECORDS.filter(r=>r.part===chosenPart).length : RECORDS.length}`;
+    const tbody = $('c2Rows');
+    tbody.innerHTML = '';
+    $('c2Empty').style.display = rows.length ? 'none' : 'block';
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="cs2-recno">${r.rid}</td>
+        <td>${statusBadge(r.status)}</td>
+        <td>${r.staff}</td>
+        <td>${r.part}</td>
+        <td>${r.lot}</td>
+        <td>${r.dice}</td>
+        <td>${r.insp}</td>
+        <td class="cs2-editcol">✎</td>`;
+      tr.onclick = () => onRowClick(r);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function onRowClick(r){
+    if (mode === 'part'){
+      chosenPart = r.part;
+      mode = 'lot';
+      $('c2Search').value = '';
+      $('c2Search').placeholder = 'LOT番号で検索';
+      $('c2KeyHead').textContent = 'LOT番号';
+      $('c2KeyHead').classList.remove('key');
+      document.querySelectorAll('table.cs2-grid th')[4].classList.add('key');
+      updateCrumbs();
+      renderList();
+    } else if (mode === 'lot'){
+      chosenRecord = r;
+      openDetail(r);
+    }
+  }
+
+  function openDetail(r){
+    mode = 'detail';
+    $('c2-list').classList.remove('active');
+    $('c2-detail').classList.add('active');
+    $('c2SearchRow').style.display = 'none';
+    $('c2Back').classList.add('show');
+    $('c2DetRid').textContent = 'レコード番号 ' + r.rid + ' 品番 ' + r.part;
+    $('c2DetMeta').textContent = 'LOT ' + r.lot + ' ダイス番号 ' + r.dice + ' 担当 ' + r.staff;
+    updateCrumbs();
+
+    const specBody = $('c2SpecRows');
+    const checkBody = $('c2CheckRows');
+    specBody.innerHTML = ''; checkBody.innerHTML = '';
+    let lastGrp = null;
+    r.spec.forEach((s, i) => {
+      if (s.grp !== lastGrp){
+        specBody.appendChild(groupHeaderRow(s.grp, 3));
+        checkBody.appendChild(groupHeaderRow(s.grp, 4));
+        lastGrp = s.grp;
+      }
+      specBody.appendChild(rowEl(`<td>${s.pos}</td><td>${s.up}</td><td>${s.low}</td>`));
+      
+      const checkRow = rowEl(`
+        <td class="item-name">${s.pos}</td>
+        <td><input type="number" step="0.01" class="item-val" data-idx="${i}"></td>
+        <td><span class="cs2-judge wait item-judge" id="c2J-${i}">—</span></td>
+        <td><input type="text" class="item-rem" placeholder="備考" style="width:90px;text-align:left;"></td>`);
+      checkBody.appendChild(checkRow);
+      checkRow.querySelector('input[type=number]').addEventListener('input', e => judge(i, s, e.target.value));
+    });
+    $('c2Hint').textContent = '';
+  }
+
+  function rowEl(html){ const tr = document.createElement('tr'); tr.innerHTML = html; return tr; }
+  function groupHeaderRow(name, span){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="${span}" style="background:var(--head); font-weight:700; font-size:11px; color:var(--ink-soft); letter-spacing:.03em;">${name}</td>`;
+    return tr;
+  }
+
+  function judge(i, spec, val){
+    const badge = $('c2J-' + i);
+    if (val === ''){ badge.className = 'cs2-judge wait item-judge'; badge.textContent = '—'; return; }
+    const v = parseFloat(val);
+    const ok = v >= spec.low && v <= spec.up;
+    badge.className = 'cs2-judge item-judge ' + (ok ? 'ok' : 'ng');
+    badge.textContent = ok ? 'OK' : 'NG';
+  }
+
   async function c2Save(){
     const badges = document.querySelectorAll('.cs2-judge');
     const hasNg = [...badges].some(b => b.classList.contains('ng'));
     const hasWait = [...badges].some(b => b.classList.contains('wait'));
     
     if (hasWait) {
-        $('c2Hint').textContent = '未入力の項目があります (กรุณากรอกข้อมูลให้ครบ)';
+        $('c2Hint').textContent = '未入力の項目があります'; // มีช่องที่ยังไม่ได้กรอก
         return;
     }
 
-    $('c2Hint').textContent = 'กำลังบันทึกข้อมูลลง Google Sheets...';
+    $('c2Hint').textContent = '保存中...'; // กำลังบันทึก
 
     const payload = {
         rid: chosenRecord.rid,
@@ -31,13 +348,12 @@
         }
     });
 
-    // นำ URL ที่ได้จาก Google Apps Script มาวางที่นี่
-    const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL_HERE';
+    // 🔴 วาง URL จาก Google Apps Script ตรงนี้ 🔴
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/a/macros/fjtrashi.co.jp/s/AKfycbz5AgHPsRl8HjB9Y6naEwklEIf4pL-bknm2FIUNBRMUmw82Jl6h5Rr6c8E-OxeA6foR/exec';
 
     try {
         const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            // ใช้ text/plain เพื่อป้องกันปัญหา CORS Preflight ในเบราว์เซอร์
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(payload)
         });
@@ -45,12 +361,51 @@
         const result = await response.json();
         
         if (result.success) {
-            $('c2Hint').textContent = hasNg ? 'บันทึกสำเร็จ（มี 항목 NG）' : 'บันทึกสำเร็จ（全項目OK）';
+            $('c2Hint').textContent = hasNg ? '保存しました（NG項目あり）' : '保存しました（全項目OK）'; // บันทึกสำเร็จ
         } else {
-            $('c2Hint').textContent = 'เกิดข้อผิดพลาดในการบันทึก';
+            $('c2Hint').textContent = 'サーバーエラーが発生しました'; // เอเรอร์จากฝั่งเซิร์ฟเวอร์
         }
     } catch (error) {
-        $('c2Hint').textContent = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
+        $('c2Hint').textContent = '通信エラーが発生しました'; // การเชื่อมต่อล้มเหลว
         console.error(error);
     }
   }
+
+  function updateCrumbs(){
+    const c = $('c2Crumbs');
+    if (mode === 'part'){
+      c.innerHTML = `<span class="active">品番選択画面</span>`;
+    } else if (mode === 'lot'){
+      c.innerHTML = `<span class="clickable" onclick="c2Reset()">品番選択画面</span><span> ›</span><span class="active">${chosenPart} の LOT番号選択</span>`;
+    } else if (mode === 'detail'){
+      c.innerHTML = `<span class="clickable" onclick="c2Reset()">品番選択画面</span><span> ›</span><span class="clickable" onclick="c2ToLot()">${chosenPart}</span><span> ›</span><span class="active">レコード ${chosenRecord.rid}</span>`;
+    }
+  }
+
+  window.c2Reset = function(){
+    mode = 'part'; chosenPart = null; chosenRecord = null;
+    $('c2Search').value=''; $('c2Search').placeholder='品番で検索';
+    $('c2KeyHead').textContent='品番'; $('c2KeyHead').classList.add('key');
+    document.querySelectorAll('table.cs2-grid th')[4].classList.remove('key');
+    $('c2-detail').classList.remove('active'); $('c2-list').classList.add('active');
+    $('c2SearchRow').style.display='flex'; $('c2Back').classList.remove('show');
+    updateCrumbs(); renderList();
+  };
+  window.c2ToLot = function(){
+    mode = 'lot';
+    $('c2-detail').classList.remove('active'); $('c2-list').classList.add('active');
+    $('c2SearchRow').style.display='flex'; $('c2Back').classList.add('show');
+    updateCrumbs(); renderList();
+  };
+  window.c2Back = function(){
+    if (mode === 'detail') c2ToLot();
+    else if (mode === 'lot') c2Reset();
+  };
+  window.c2Save = c2Save;
+
+  $('c2Search').addEventListener('input', renderList);
+  renderList();
+})();
+</script>
+</body>
+</html>
